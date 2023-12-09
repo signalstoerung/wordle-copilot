@@ -170,6 +170,8 @@ export function addGuess(){
   guessGlobal.yellow = ["","","","",""];
   const t = document.getElementById("guessTable")
   t.replaceChildren( guessGlobal.htmlElements() );
+  helpBtn.style.visibility = "visible";
+  solveBtn.style.visibility = "visible";
 }
 
 // event: toggle char
