@@ -165,7 +165,7 @@ export function addGuess(){
   const guess: HTMLInputElement = document.getElementById("guess") as HTMLInputElement;
   guessGlobal.addGuess(guess.value);
   for (let i=0; i<5; i++) {
-    guessGlobal.changeGrey(Action.Add, guess.value[i], i);
+    guessGlobal.changeGrey(Action.Add, guess.value[i]);
   }
   guessGlobal.yellow = ["","","","",""];
   const t = document.getElementById("guessTable")
@@ -193,7 +193,6 @@ export function toggle(e: Event){
     guessGlobal.changeGreen(Action.Remove, char.innerText, pos);
     guessGlobal.changeGrey(Action.Add, char.innerText);
   }
-  console.log(guessGlobal.green, guessGlobal.yellow);
 }
 
 // event: help
