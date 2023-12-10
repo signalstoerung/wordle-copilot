@@ -1,139 +1,160 @@
-// Import stylesheets
-import './style.css';
+// Types and enums
 
 enum Action {
   Add,
   Remove
 }
-// class definition
-export class scoredGuess {
-  all: Array<string> = []; // all guesses
-  pattern: RegExp = /[A-Z]{5}/gi; // this is the 'green' pattern of letters where we already know the position
-  patternYellow: Array<string> = []; // this is the 'yellow' pattern - letters we know are in the word, but we don't know the position
-  patternAntiYellow: RegExp; // this is the yellow antipattern - if we have a yellow letter in a certain position, then we know that the letter is not in this position in the solution, so it can be used to exclude words from the dictionary
-  green: Array<string> = ["","","","",""]; // storing the green letters (max one per position) 
-  grey: Array<string> = []; // storing the grey (ruled out) letters
-  yellow: Array<string> = ["","","","",""]; // storing the yellow letters per position (can be multiple)
-  addGuess(word: string){
-    if (word.length!=5){
-      console.log("invalid word length: ", word.length);
+
+type word = Array<letter>
+type letterColor = "grey" | "green" | "yellow";
+
+// class definitions
+
+class letter {
+  letter: string = "";
+  color: letterColor = "grey";
+  constructor(letter: string, color: letterColor){
+    this.letter = letter;
+    this.color = color;
+  }
+}
+
+class scoredGuess {
+  all: Array<word> = []; // all guesses
+
+  greenYellowPattern: RegExp = /[A-Z]{5}/gi; // this is the regexp of 'green' letters (position known) and the yellow/grey letters that we know are not in a particular position
+  listYellow: Array<string> = []; // array storing 'yellow' letters - letters we know are in the word, but we don't know the position
+  listGrey: Array<string> = []; // array storing the grey (globally ruled out) letters
+
+  addGuess(w: string){
+    if (w.length!=5){
+      console.log("invalid word length: ", w.length);
       return
     }
-    this.all.push(word.toUpperCase());
+    let thisWord: word = [];
+    for (let i=0; i<w.length; i++) {
+      thisWord.push(new letter(w[i].toUpperCase(),"grey"))
+    }
+    this.all.push(thisWord);
   }
-  changeGrey(a: Action, char: string){
-    if (char.length != 1) {
-      console.log("error, only single letters allowed");
-      return;
+  markLetter(pos: number, color: letterColor) {
+    if (pos <0 || pos > 4) {
+      console.log("Invalid position - needs to be 0..4");
+      return
     }
-    if (a == Action.Add) {
-      // check if we already have this letter, if not add it
-      if (this.grey.indexOf(char.toUpperCase()) < 0) {
-        this.grey.push(char.toUpperCase());
-      }
-    }
-    if (a == Action.Remove) {
-      // check if we have the letter stored, then remove
-      const found = this.grey.indexOf(char.toUpperCase());
-      if (found != -1) {
-        this.grey.splice(found, 1);
-      } else {
-        console.log(char, " not found in 'grey' characters");
-      }
-    }
-  }
-  changeYellow(a: Action, char: string, pos: number){
-    if (char.length != 1) {
-      console.log("error, only single letters allowed");
-      return;
-    }
-    if (pos < 0 || pos > 4) {
-        console.log("invalid value for pos");
-        return;
-    }
-    if (a == Action.Add) {
-      // we store yellow letters twice
-      // once by position
-      // this will be used to create the antipattern - we know these letters are not in this position in the solution (otherwise they'd be green)
-      this.yellow[pos]+=char.toUpperCase();
-      // then individually in an array
-      // so that we can filter the dictionary individually for these letters, because they need to be somewhere in the solution
-      if (this.patternYellow.indexOf(char) < 0){
-        this.patternYellow.push(char.toUpperCase());
-      }
-    }
-    if (a == Action.Remove) {
-      const found = this.yellow[pos].indexOf(char.toUpperCase());
-      if (found != -1) {
-        this.yellow[pos] = this.yellow[pos].substring(0,found) + this.yellow[pos].substring(found+1);
-      } else {
-        console.log(char, " not found in 'yellow' characters");
-      }
-
-      const foundB = this.patternYellow.indexOf(char.toUpperCase());
-      if (foundB != -1) {
-        this.patternYellow.splice(foundB, 1);
-      }
-    } 
-    this.calculatePattern();
-  }
-  changeGreen(a: Action, char: string, pos: number){
-    if (char.length != 1) {
-      console.log("error, only single characters allowed");
-      return;
-    }
-    if (pos < 0 || pos > 4) {
-      console.log("invalid value for pos");
-      return;
-    }
-    if (a == Action.Add) {
-      this.green[pos]=char.toUpperCase();
-    }
-    if (a == Action.Remove) {
-      this.green[pos]="";
-    }
-    this.calculatePattern();
+    const guess = this.all.length - 1;
+    this.all[guess][pos].color = color;
   }
   calculatePattern(){
-    var pattern: string = "";
-    // the green pattern is the easiest. Either the letter itself, or [A-Z]{1}.
-    for (var i=0; i<5; i++) {
-      if (this.green[i]=="") {
-        pattern += "[A-Z]{1}"
-      } else {
-        pattern += this.green[i];
-      }
-    }
-    this.pattern = new RegExp(pattern, "gi");
+    let green: Array<string> = ["","","","",""]; // array of green letters by position
+    let grey: Array<string> = []; // an array of letters that have been ruled out completely
+    let yellow: Array<string> = []; // array of yellow letters that need to be somewhere in the solution
+    let ruledOutByPosition: Array<Array<string>> = [[],[],[],[],[]]; // array of array - array of letters by position
+ 
+    for (const w of this.all) {
+      let pos = 0;
+      for (const l of w) {
+        // green first
+        if (l.color == "green"){
+          green[pos]=l.letter;
+        }
+        if (l.color == "grey") {
+          // in principle, grey letters are ruled out completely
+          // the only exception is if they're duplicates - only one gets colored yellow (or green), the other is grey
+          // it's not reliably the first letter that gets colored (take for instance the guess ELOPE - if the solution is SMITE, then the first E will be grey)
+          // long story short, we can't determine this here - need to come back to this
+          grey.push(l.letter);
 
-    // this is the yellow antipattern
-    // because these letters are yellow, we know they are not in this position in the solution
-    // (otherwise they'd be green)
-    // if we have letters in this position the pattern is [^chars] (^ = negation)
-    // otherwise it's '.' (any character)
-    var yAntiPattern: string = "";
-    for (var i=0; i<5; i++){
-      if (this.yellow[i]=="") {
-        yAntiPattern += ".";
-      } else {
-        yAntiPattern += `[^${this.yellow[i]}]{1}`
+          // we can already add it to the position, though, that doesn't hurt
+          ruledOutByPosition[pos].push(l.letter);
+        }
+        if (l.color == "yellow") {
+          // yellow letters have to be somewhere in the solution, but not at this position
+          yellow.push(l.letter);
+          ruledOutByPosition[pos].push(l.letter);
+        }
+        pos++;
+      }
+      // remove duplicates
+      for (let i=0; i<grey.length; i++) {
+        const g = grey[i]; // grey letter
+        if ( (green.indexOf(g) != -1) || (yellow.indexOf(g) != -1)) {
+          // this letter appears in the 'green' or 'yellow' list and is therefore not completely ruled out
+          // delete from array
+          grey.splice(i, 1);
+        }
       }
     }
-    this.patternAntiYellow = new RegExp(yAntiPattern, "gi");
-    // for grey and the other yellow pattern, we don't use regexp, we simply filter the word list for this letter (because it could be in any position in the solution)
-  }
+
+    // now we have loaded everything into the local variables above
+    // generate patterns
+    // console.log(`Green: ${green}`);
+    // console.log(`Grey: ${grey}`);
+    // console.log(`Yellow: ${yellow}`);
+    // for (let i=0; i<ruledOutByPosition.length; i++){
+    //   console.log(`Ruled out in position ${i}: ${ruledOutByPosition[i]}`);
+    // }
+
+
+    let greenYellowPattern: string = "";
+
+    // green-yellow pattern
+    for (var i=0; i<5; i++) {
+      if (green[i]!="") {
+        greenYellowPattern += green[i];
+      } else {
+        let s: string = "";
+        for (const l of ruledOutByPosition[i]){
+          s += l;
+        }
+        // s now holds all letters for this position
+        if (s == "") {
+          // nothing found for this position
+          greenYellowPattern += "[A-Z]{1}"
+        } else {
+          greenYellowPattern += `[^${s}]{1}`;
+        }
+      }
+    }
+    // store in class variable
+    this.greenYellowPattern = new RegExp(greenYellowPattern, "gi");
+
+    // the rest are just lists
+    this.listGrey = grey;
+    this.listYellow = yellow;
+
+}
   htmlElements():HTMLElement{
     var root = document.createElement("div");
-    for (const guess of this.all) {
-      const last = this.all.indexOf(guess)==this.all.length-1;
+    for (let i=0; i<this.all.length; i++) {
+      // save the word into const for easier access
+      const guess = this.all[i];
+      // last one? then we need to activate toggles
+      const last = i==this.all.length-1;
+
       const row = document.createElement("div");
       row.className="guessRow";
       root.appendChild(row)
-      // to do - color letters for past guesses
+      // iterate through word
       for (var c=0; c<guess.length; c++){
         const char = document.createElement("span");
-        char.className="guessChar";
-        char.innerHTML=guess[c];
+        // assign class
+        let cssClass: string = "";
+        switch (guess[c].color) {
+          case "grey": 
+            cssClass = "guessChar";
+            break;
+          case "yellow": 
+            cssClass = "guessChar guessYellow";
+            break;
+          case "green": 
+            cssClass = "guessChar guessGreen";
+            break;
+        }
+        char.className=cssClass;
+        // set letter
+        char.innerHTML=guess[c].letter;
+        // set ID
         char.id="guess"+c;
         // only make the last guess clickable
         if (last) {
@@ -161,13 +182,9 @@ solveBtn.addEventListener("click",solve);
 const resultsDiv = document.getElementById("results")
 
 // event: submit guess
-export function addGuess(){
+function addGuess(){
   const guess: HTMLInputElement = document.getElementById("guess") as HTMLInputElement;
   guessGlobal.addGuess(guess.value);
-  for (let i=0; i<5; i++) {
-    guessGlobal.changeGrey(Action.Add, guess.value[i]);
-  }
-  guessGlobal.yellow = ["","","","",""];
   const t = document.getElementById("guessTable")
   t.replaceChildren( guessGlobal.htmlElements() );
   helpBtn.style.visibility = "visible";
@@ -175,33 +192,32 @@ export function addGuess(){
 }
 
 // event: toggle char
-export function toggle(e: Event){
+function toggle(e: Event){
   const char = e.target as HTMLElement;
   const pos = Number(char.getAttribute("data-pos"));
   // cycle from grey to yellow to green back to grey
   if (char.className=="guessChar") {
     char.className="guessChar guessYellow";
-    guessGlobal.changeYellow(Action.Add, char.innerText,pos);
-    guessGlobal.changeGrey(Action.Remove, char.innerText);   
+    guessGlobal.markLetter(pos, "yellow");
 
   } else if (char.classList.contains("guessYellow")) {
     char.className="guessChar guessGreen";
-    guessGlobal.changeYellow(Action.Remove, char.innerText,pos);
-    guessGlobal.changeGreen(Action.Add, char.innerText, pos);
+    guessGlobal.markLetter(pos, "green")
   } else {
     char.className="guessChar";
-    guessGlobal.changeGreen(Action.Remove, char.innerText, pos);
-    guessGlobal.changeGrey(Action.Add, char.innerText);
+    guessGlobal.markLetter(pos, "grey")
   }
 }
 
 // event: help
-export function help(){
+function help(){
+  guessGlobal.calculatePattern();
   const solutions = filterSolutions();
   const count = solutions.length;
   resultsDiv.innerHTML = count + " solutions remaining";
 }
-export function solve(){
+function solve(){
+  guessGlobal.calculatePattern();
   const solutions = filterSolutions();
   resultsDiv.innerHTML = "Solutions remaining:\n"+solutions.join("\n");
 }
@@ -210,16 +226,17 @@ function filterSolutions():Array<string> {
   // filter the greens 
 
   let remaining = answers.filter( (word) => {
-    // green is a positive pattern - we want to keep what matches
+    // first filter by the green/yellow match/exclusion pattern - we want to keep what matches
     // so if match returns not null, we return true (=include this element of the array)
-    const result = word.match(guessGlobal.pattern);
+    const result = word.match(guessGlobal.greenYellowPattern);
     if (result) {
       return true
     }
     else return false
   });
+
   // filter the greys
-  for (const y of guessGlobal.grey) {
+  for (const y of guessGlobal.listGrey) {
     remaining = remaining.filter( (word) => {
       // grey is an antipattern - we don't want these letters
       // so if result returns not null, we return false (=exclude this element)
@@ -232,8 +249,8 @@ function filterSolutions():Array<string> {
     });
   }
   // now filter the yellows
-  // first the pattern that we want
-  for (const y of guessGlobal.patternYellow) {
+  // yellow needs to be in the solution, so we keep what matches
+  for (const y of guessGlobal.listYellow) {
     if (y == "") {continue}
     remaining = remaining.filter( (word) => {
       const result = word.match(new RegExp(y, "gi"));
@@ -244,15 +261,6 @@ function filterSolutions():Array<string> {
       }
     });
   }
-
-  // then the antipattern
-  remaining = remaining.filter( (word) => {
-    const result = word.match(guessGlobal.patternAntiYellow);
-    // attention: the regexp is constructed to exclude ([^chars])
-    // so we want what matches, like above
-    // null => false
-    if (result) { return true } else {return false}
-  });
   return remaining;
 }
 
